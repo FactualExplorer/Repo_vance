@@ -6,10 +6,10 @@ option optimize_for = LITE_RUNTIME;
 option java_package = "app.revanced.extension.shared.innertube";
 
 message PlayerResponse {
-    oneof data {
-      PlayabilityStatus playability_status = 2;
-      StreamingData streaming_data = 4;
-    }
+    // Both fields can be present in the same response. A oneof would discard
+    // whichever field was parsed first and could hide a playback error.
+    PlayabilityStatus playability_status = 2;
+    StreamingData streaming_data = 4;
 }
 
 message PlayabilityStatus {

@@ -103,7 +103,9 @@ public class SpoofVideoStreamsSideEffectsPreference extends Preference {
         }
 
         // Only Android Reel and Android VR supports 360° VR immersive mode.
-        if (!clientType.name().startsWith("ANDROID_VR") && clientType != ClientType.ANDROID_REEL_NO_AUTH) {
+        if (!clientType.name().startsWith("ANDROID_VR")
+                && clientType != ClientType.ANDROID_REEL
+                && clientType != ClientType.ANDROID_REEL_NO_AUTH) {
             summary += '\n' + str("revanced_spoof_video_streams_about_no_immersive_mode");
         }
 

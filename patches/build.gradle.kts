@@ -2,9 +2,9 @@ group = "app.revanced"
 
 patches {
     about {
-        name = "ReVanced Patches"
-        description = "Patches for ReVanced"
-        source = "git@github.com:revanced/revanced-patches.git"
+        name = "ReVanced Patches (playback fork)"
+        description = "ReVanced patches with backported YouTube playback and quality-selection fixes"
+        source = "https://github.com/FactualExplorer/Repo_vance"
         author = "ReVanced"
         contact = "patches@revanced.app"
         website = "https://revanced.app"

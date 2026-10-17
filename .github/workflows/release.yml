@@ -10,6 +10,7 @@ on:
 jobs:
   release:
     name: Release
+    if: github.repository == 'ReVanced/revanced-patches'
     permissions:
       contents: write
       packages: write

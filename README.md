@@ -65,6 +65,10 @@
 
 This repository contains a collection of ReVanced Patches.
 
+This fork includes backported YouTube playback and quality-selection fixes.
+See [building and using the playback patches](docs/playback-fix.md) for the changes,
+Manager installation steps, and verification limits.
+
 ## ❓ About
 
 Patches are small modifications to Android apps that allow you to change the behavior of or add new features,

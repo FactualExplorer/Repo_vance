@@ -18,7 +18,7 @@ final class PlayerRoutes {
     static final Route.CompiledRoute GET_PLAYER_STREAMING_DATA = new Route(
             Route.Method.POST,
             "player" +
-                    "?fields=streamingData" +
+                    "?fields=playabilityStatus,streamingData" +
                     "&alt=proto"
     ).compile();
 
@@ -95,7 +95,7 @@ final class PlayerRoutes {
 
         connection.setRequestProperty("Content-Type", "application/json");
         connection.setRequestProperty("User-Agent", clientType.userAgent);
-        // Not a typo. "Client-Name" uses the client type id.
+        // Match the client identity used by the upstream Reel playback fix.
         connection.setRequestProperty("X-YouTube-Client-Name", clientType.clientName);
         connection.setRequestProperty("X-YouTube-Client-Version", clientType.clientVersion);
 
