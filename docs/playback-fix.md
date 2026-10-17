@@ -2,8 +2,40 @@
 
 This fork targets the reported pause around 1:00 and the quality selector becoming
 unavailable at 480p. YouTube **20.40.45** is in the patch's supported versions.
-The changes are candidates for resolving these symptoms; on-device playback must
-still be checked after repatching.
+The first Reel-based build did not resolve the stall in the phone test. The next
+revision uses **visionOS 1.04 with a matching visitor identity**. On-device
+playback must still be checked after repatching.
+
+## Current playback change
+
+The old Reel flow could return `playabilityStatus: OK` and serve the first media
+byte range while returning **HTTP 403** for a later range of the same video.
+A successful player response therefore did not establish that the whole video
+was playable. This was reproduced against a public test video on October 17,
+2026, independently of the phone logs.
+
+The updated visionOS flow follows the client profile and visitor bootstrap used
+by [NewPipe Extractor at 8443c91](https://github.com/TeamNewPipe/NewPipeExtractor/tree/8443c91bf4276c326f7b33e30a36d88e0ab94cfe/extractor/src/main/java/org/schabi/newpipe/extractor/services/youtube):
+
+- Use visionOS client version `1.04`, device `RealityDevice17,1`, and the native
+  visionOS user agent, replacing the old `0.1` profile and Safari user agent.
+- Request visitor data from YouTube's `visitor_id` endpoint for that profile,
+  then include the returned identity in the player request's client context.
+- Keep each visitor identity local to its fetch. Do not forward Android login,
+  visitor, or API-format headers into visionOS requests.
+- Make visionOS the default for new YouTube settings. Existing installations
+  must explicitly select **visionOS**; **Stats for nerds** should show
+  **visionOS 1.04** when this client supplies the stream.
+
+The supplied phone log reached the app's approximately 900 KB log-buffer limit
+and contained almost entirely UI-filter messages; it did not retain the stream
+requests. It cannot independently establish the phone's HTTP failure.
+
+Validation on October 17, 2026: all 19 deterministic checks passed. The live
+production-code probe for `aqz-KE-bpKQ`, after a 75-second wait, returned HTTP 200
+and exactly 1,024 bytes for the first and later ranges of both 720p60 and 1440p60.
+The later offsets were 17,790,686 and 55,947,336 bytes respectively. This is a
+media-access check, not confirmation of uninterrupted playback on the phone.
 
 ## Source of the fixes
 
@@ -45,9 +77,10 @@ Additional corrections in this fork (October 17, 2026):
    **GmsCore support**. Install the resulting APK using your existing Manager
    signing key. Keep your current APK/settings as a rollback option.
 5. In patched YouTube, open **Settings → ReVanced → Misc → Spoof video streams**,
-   enable spoofing, select **Android Reel (no auth)**, and restart YouTube.
+   enable spoofing, select **visionOS**, and restart YouTube.
    An existing saved client selection can survive an update, so select this
-   explicitly. This option was absent from the original clone.
+   explicitly. The label already existed, but this revision changes its client
+   profile and request flow. The earlier Reel build is not this revision.
 
 The workflow builds a uniquely versioned `6.1.0-playback.<run number>` bundle and
 uploads it as an artifact. It uses GitHub's built-in token for dependency downloads;
@@ -66,6 +99,19 @@ The runner compiles the actual client definitions, HTTP request code, stream
 parser and generated protobuf classes. It uses in-memory HTTP responses and
 small test-only Android/application service stubs. Dependencies are downloaded
 from Maven Central into the ignored `build/` directory.
+
+An optional live smoke test uses the production Java visitor/player/protobuf
+flow and reads 1 KB media ranges with an Android user agent:
+
+```sh
+python3 tests/playback/run.py --live-video aqz-KE-bpKQ --live-delay-seconds 75
+```
+
+This test expects a public video longer than 90 seconds with 720p and 1440p
+formats. It checks the beginning and a byte offset estimated to correspond to
+75 seconds, optionally after waiting. It does not decode video or exercise
+Android's player. It is deliberately excluded from automatic CI because live
+YouTube responses depend on network and server conditions.
 
 For a complete bundle, install JDK 17 and an Android SDK with platform 34 and
 build tools 34.0.0. Set `ANDROID_HOME` to that SDK. Configure the
@@ -88,8 +134,8 @@ levels after 1:00, and seek forward. Repeat on another video and check Shorts
 and a livestream if you use them. Record the client displayed in **Stats for
 nerds**, since fallback can select a different client from the preference.
 
-These local tests do not verify YouTube's current server behavior, APK bytecode
-injection, Android playback, or request timing. Upstream still documents playback
-and regional limitations for Reel. If the symptom persists, note the selected
+The deterministic local tests do not verify YouTube's current server behavior,
+APK bytecode injection, Android playback, or request timing. The optional live
+probe verifies media access only from the machine running it. If the symptom persists, note the selected
 and actual client, a video link, and the time of the stall. A screen recording
 is sufficient to show the symptom; logs are only needed for deeper diagnosis.

@@ -122,6 +122,57 @@ public final class PlaybackRegressionTest {
             require(StreamingDataRequest.getRequestForVideoId("fallback-test").getStream() != null, "Fallback failed");
             require(CONNECTIONS.size() == before + 2, "Wrong number of attempts");
         });
+        check("visionOS obtains and uses its own visitor identity", () -> {
+            StreamingDataRequest.setClientOrderToUse(List.of(ClientType.VISIONOS), ClientType.VISIONOS, true);
+            int before = CONNECTIONS.size();
+            HTTP_RESPONSES.add(visitor("vision-visitor-one"));
+            HTTP_RESPONSES.add(response(MIXED_FORMATS).toByteArray());
+            StreamingDataRequest.fetchRequest("vision-test", Map.of(
+                    "Authorization", "test-access-token", "X-Goog-Visitor-Id", "android-visitor",
+                    "X-GOOG-API-FORMAT-VERSION", "1"));
+            require(StreamingDataRequest.getRequestForVideoId("vision-test").getStream() != null, "visionOS fetch failed");
+            require(CONNECTIONS.size() == before + 2, "Missing visitor bootstrap");
+            FakeConnection bootstrap = CONNECTIONS.get(before);
+            require(bootstrap.getURL().getHost().equals("www.youtube.com"), "Wrong visitor service");
+            require(bootstrap.getURL().getPath().endsWith("/visitor_id"), "Wrong bootstrap endpoint");
+            require(bootstrap.disconnected, "Visitor connection was not released");
+            for (FakeConnection c : CONNECTIONS.subList(before, CONNECTIONS.size())) {
+                require(c.getRequestProperty("Authorization") == null, "Android authentication leaked into visionOS");
+                require(c.getRequestProperty("X-Goog-Visitor-Id") == null, "Android visitor leaked into visionOS");
+                require("2".equals(c.getRequestProperty("X-Goog-Api-Format-Version")), "Wrong API format");
+            }
+            var client = new JSONObject(lastConnection().request.toString(java.nio.charset.StandardCharsets.UTF_8))
+                    .getJSONObject("context").getJSONObject("client");
+            require(client.getString("visitorData").equals("vision-visitor-one"), "Bootstrap identity not used");
+            require(client.getString("platform").equals("MOBILE"), "Client platform missing");
+            require(client.getString("clientScreen").equals("WATCH"), "Client screen missing");
+        });
+        check("Visitor identities are not reused across video fetches", () -> {
+            HTTP_RESPONSES.add(visitor("vision-visitor-two"));
+            HTTP_RESPONSES.add(response(MIXED_FORMATS).toByteArray());
+            StreamingDataRequest.fetchRequest("vision-second-test", Map.of());
+            require(StreamingDataRequest.getRequestForVideoId("vision-second-test").getStream() != null, "Second fetch failed");
+            var client = new JSONObject(lastConnection().request.toString(java.nio.charset.StandardCharsets.UTF_8))
+                    .getJSONObject("context").getJSONObject("client");
+            require(client.getString("visitorData").equals("vision-visitor-two"), "Visitor from another video reused");
+        });
+        check("Missing visitor data falls back without sending an invalid visionOS player request", () -> {
+            StreamingDataRequest.setClientOrderToUse(List.of(ClientType.ANDROID_VR_1_43_32), ClientType.VISIONOS, true);
+            int before = CONNECTIONS.size();
+            HTTP_RESPONSES.add("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            HTTP_RESPONSES.add(response(MIXED_FORMATS).toByteArray());
+            StreamingDataRequest.fetchRequest("missing-visitor-test", Map.of());
+            require(StreamingDataRequest.getRequestForVideoId("missing-visitor-test").getStream() != null, "Fallback failed");
+            require(CONNECTIONS.size() == before + 2, "An invalid visionOS player request was sent");
+            require(lastConnection().getRequestProperty("User-Agent").equals(ClientType.ANDROID_VR_1_43_32.userAgent), "Wrong fallback client");
+        });
+        check("Malformed visitor response releases its connection", () -> {
+            StreamingDataRequest.setClientOrderToUse(List.of(ClientType.VISIONOS), ClientType.VISIONOS, true);
+            HTTP_RESPONSES.add("not-json".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StreamingDataRequest.fetchRequest("bad-visitor-test", Map.of());
+            require(StreamingDataRequest.getRequestForVideoId("bad-visitor-test").getStream() == null, "Malformed bootstrap accepted");
+            require(lastConnection().disconnected, "Failed bootstrap connection leaked");
+        });
         require(HTTP_RESPONSES.isEmpty(), "Unused HTTP fixtures");
         System.out.println("Passed " + passed + " playback regression checks.");
     }
@@ -157,6 +208,11 @@ public final class PlaybackRegressionTest {
         return ReelItemWatchResponse.newBuilder().setPlayerResponse(response).build().toByteArray();
     }
 
+    private static byte[] visitor(String value) {
+        return new JSONObject().put("responseContext", new JSONObject().put("visitorData", value))
+                .toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     private static byte[] field(int number, byte[] value) throws IOException {
         var bytes = new ByteArrayOutputStream();
         var coded = CodedOutputStream.newInstance(bytes);
@@ -184,13 +240,14 @@ public final class PlaybackRegressionTest {
     private static final class FakeConnection extends HttpURLConnection {
         private final byte[] response;
         private final ByteArrayOutputStream request = new ByteArrayOutputStream();
+        private boolean disconnected;
         FakeConnection(URL url, byte[] response) { super(url); this.response = response; }
         @Override public int getContentLength() { return response.length; }
         @Override public int getResponseCode() { return 200; }
         @Override public InputStream getInputStream() { return new ByteArrayInputStream(response); }
         @Override public OutputStream getOutputStream() { return request; }
         @Override public void connect() {}
-        @Override public void disconnect() {}
+        @Override public void disconnect() { disconnected = true; }
         @Override public boolean usingProxy() { return false; }
     }
 }

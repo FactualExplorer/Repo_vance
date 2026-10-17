@@ -163,6 +163,10 @@ public class StreamingDataRequest {
         final long startTime = System.currentTimeMillis();
 
         try {
+            // visionOS must use a visitor identity issued for its own client profile.
+            // In particular, do not forward the signed-in Android player's visitor header.
+            String visitorData = clientType == ClientType.VISIONOS
+                    ? PlayerRoutes.fetchVisitorData(clientType) : null;
             Route.CompiledRoute route = clientType.usePlayerEndpoint ?
                     GET_PLAYER_STREAMING_DATA : GET_REEL_STREAMING_DATA;
 
@@ -173,6 +177,7 @@ public class StreamingDataRequest {
             boolean authHeadersIncludes = false;
 
             for (String key : REQUEST_HEADER_KEYS) {
+                if (clientType == ClientType.VISIONOS) continue;
                 String value = playerHeaders.get(key);
 
                 if (value != null) {
@@ -197,10 +202,12 @@ public class StreamingDataRequest {
 
             Logger.printDebug(() -> "Fetching video streams for: " + videoId + " using client: " + clientType);
 
-            String innerTubeBody = PlayerRoutes.createInnertubeBody(clientType, videoId);
+            String innerTubeBody = PlayerRoutes.createInnertubeBody(clientType, videoId, visitorData);
             byte[] requestBody = innerTubeBody.getBytes(StandardCharsets.UTF_8);
             connection.setFixedLengthStreamingMode(requestBody.length);
-            connection.getOutputStream().write(requestBody);
+            try (var output = connection.getOutputStream()) {
+                output.write(requestBody);
+            }
 
             final int responseCode = connection.getResponseCode();
             if (responseCode == 200) return connection;
@@ -294,6 +301,8 @@ public class StreamingDataRequest {
                 responseBuilder.setStreamingData(preferMultipleAvcQualities(streamingData));
             }
 
+            Logger.printDebug(() -> "Accepted " + clientType.friendlyName + " streams: "
+                    + responseBuilder.getStreamingData().getAdaptiveFormatsCount() + " adaptive formats");
             return responseBuilder.build().toByteArray();
         } catch (IOException ex) {
             Logger.printException(() -> "Failed to write player response to buffer array", ex);

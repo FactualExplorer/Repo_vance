@@ -7,6 +7,7 @@ requests are needed. Android UI, bytecode injection and timing are not covered.
 """
 
 from pathlib import Path
+import argparse
 import os
 import platform
 import shutil
@@ -105,6 +106,11 @@ def download(relative_url):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--live-video", help="Also probe real media ranges for a public video ID using production visionOS requests")
+    parser.add_argument("--live-delay-seconds", type=int, default=0,
+                        help="Wait before live media probes to check that URLs still work after the initial request")
+    args = parser.parse_args()
     system = {"Darwin": "osx", "Linux": "linux"}.get(platform.system())
     arch = {"arm64": "aarch_64", "aarch64": "aarch_64", "x86_64": "x86_64"}.get(platform.machine())
     if not system or not arch:
@@ -142,6 +148,10 @@ def main():
                     *map(str, sources)], check=True)
     subprocess.run(["java", "-ea", "-cp", str(classes) + os.pathsep + classpath,
                     "app.revanced.extension.shared.spoof.requests.PlaybackRegressionTest"], check=True)
+    if args.live_video:
+        subprocess.run(["java", "-ea", "-cp", str(classes) + os.pathsep + classpath,
+                        "app.revanced.extension.shared.spoof.requests.LivePlaybackProbe",
+                        args.live_video, str(args.live_delay_seconds)], check=True)
 
 
 if __name__ == "__main__":

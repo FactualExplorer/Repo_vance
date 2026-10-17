@@ -116,20 +116,21 @@ public enum ClientType {
             "Android Studio"
     ),
     /**
-     * Internal YT client for an unreleased YT client. May stop working at any time.
+     * visionOS profile used by NewPipe Extractor. Requires fresh visitor data
+     * from the matching client before requesting streams.
      */
     VISIONOS(101,
             "VISIONOS",
             "Apple",
-            "RealityDevice14,1",
+            "RealityDevice17,1",
             "visionOS",
-            "1.3.21O771",
-            "0.1",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+            "26.6.0.23O770",
+            "1.04",
+            "com.google.visionos.youtube/1.04(RealityDevice17,1; U; CPU visionOS 26_6_0 like Mac OS X; US)",
             false,
             false,
             true,
-            "visionOS"
+            "visionOS 1.04"
     );
 
     /**
